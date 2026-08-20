@@ -15,11 +15,16 @@ func (r *Registry) HandleConnections(username string, conn *websocket.Conn) {
 		conn:     conn,
 		send:     make(chan []byte, 16),
 	}
-	defer r.Release(username)
 	r.Attach(username, p)
 	r.logger.Info("new connection!")
+	if err := r.broadcastJoin(username); err != nil {
+		r.logger.Error("failed to broadcast join", "error", err)
+		return
+	}
 	go p.writeLoop(r.ctx, r.logger)
-	readConnection(r.ctx, r.logger, p)
+	r.readConnection(r.ctx, r.logger, p)
+	r.Release(username)
+	close(p.send)
 }
 
 func (p *Player) writeLoop(ctx context.Context, logger *slog.Logger) {
@@ -30,6 +35,9 @@ func (p *Player) writeLoop(ctx context.Context, logger *slog.Logger) {
 				return
 			}
 			if err := p.conn.Write(ctx, websocket.MessageText, data); err != nil {
+				if websocket.CloseStatus(err) != -1 {
+					return
+				}
 				logger.Error("Write error encounterd", "error", err.Error())
 				return
 			}
@@ -39,7 +47,8 @@ func (p *Player) writeLoop(ctx context.Context, logger *slog.Logger) {
 	}
 }
 
-func readConnection(ctx context.Context, logger *slog.Logger, player *Player) {
+func (r *Registry) readConnection(ctx context.Context, logger *slog.Logger, player *Player) {
+	defer r.broadcastLeave(player.username)
 	for {
 		_, data, err := player.conn.Read(ctx)
 		if err != nil {
@@ -49,37 +58,27 @@ func readConnection(ctx context.Context, logger *slog.Logger, player *Player) {
 			logger.Error("Read connection failed", "error", err.Error())
 			return
 		}
-		baseData, err := decodeData(data)
+		envelope, err := protocol.Decode(data)
 		if err != nil {
 			logger.Debug("unmaershalling failed, invalid data", "data", string(data), "error", err.Error())
 			continue
 		}
-		err = handleReqData(baseData, player)
+		err = r.handleReqData(envelope, player)
 		if err != nil {
-			logger.Debug("invalid type")
+			logger.Error("error while handling req", "error", err.Error(), "username", player.username)
 			continue
 		}
 	}
 }
 
-func decodeData(d []byte) (protocol.BaseStructure, error) {
-	var baseStruct protocol.BaseStructure
-	if err := json.Unmarshal(d, &baseStruct); err != nil {
-		return protocol.BaseStructure{}, err
-	}
-	return baseStruct, nil
-}
-
-func handleReqData(d protocol.BaseStructure, player *Player) error {
+func (r *Registry) handleReqData(d protocol.Envelope, player *Player) error {
 	switch d.Type {
 	case protocol.TypeChat:
-		var message protocol.Message
+		var message protocol.ChatPayload
 		if err := json.Unmarshal(d.Data, &message); err != nil || message.Text == "" {
 			return protocol.ErrInvalidProtocol
 		}
-		return player.handleMessage(message)
-	case protocol.TypeJoinChat:
-		return nil
+		return r.handleMessage(message, player)
 	default:
 		return protocol.ErrInvalidProtocol
 	}

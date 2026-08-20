@@ -31,5 +31,5 @@ func (h *Handler) handleConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.CloseNow()
-	ws.HandleConnection(username, conn)
+	h.Registry.HandleConnections(username, conn)
 }
