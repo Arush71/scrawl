@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/Arush71/scrawl/internal/protocol"
 	"github.com/coder/websocket"
@@ -16,15 +17,34 @@ func (r *Registry) HandleConnections(username string, conn *websocket.Conn) {
 		send:     make(chan []byte, 16),
 	}
 	r.Attach(username, p)
+	defer r.Release(username)
 	r.logger.Info("new connection!")
 	if err := r.broadcastJoin(username); err != nil {
 		r.logger.Error("failed to broadcast join", "error", err)
 		return
 	}
-	go p.writeLoop(r.ctx, r.logger)
-	r.readConnection(r.ctx, r.logger, p)
-	r.Release(username)
-	close(p.send)
+	ctx, cancel := context.WithCancel(r.ctx)
+	defer cancel()
+	go p.writeLoop(ctx, r.logger)
+	go heartBeat(ctx, conn)
+	r.readConnection(ctx, r.logger, p)
+}
+
+func heartBeat(ctx context.Context, conn *websocket.Conn) {
+	for {
+		select {
+		case <-time.After(time.Second * 4):
+			newCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			if err := conn.Ping(newCtx); err != nil {
+				_ = conn.CloseNow()
+				cancel()
+				return
+			}
+			cancel()
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (p *Player) writeLoop(ctx context.Context, logger *slog.Logger) {

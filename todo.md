@@ -30,6 +30,9 @@ detected and cleaned up correctly.
 
 **Goal:** Allow players to organize into isolated game rooms.
 
+Basic Goal:
+A user should be able to join/create a room, a user can leave the room, and on leave/join its broadcasted throughout the room, track the memebership in the room, prevent duplicates and delete empty rooms.
+
 ### Responsibilities
 
 - Create rooms.

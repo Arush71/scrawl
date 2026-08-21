@@ -1,3 +1,4 @@
 /bin/
 *.exe
 .env
+current_todo_daily.md

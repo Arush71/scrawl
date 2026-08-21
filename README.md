@@ -11,7 +11,7 @@ Real-time multiplayer drawing & guessing game, built from scratch in Go — cust
 
 ## Roadmap
 
-- [ ] V1 — WebSocket Gateway
+- [x] V1 — WebSocket Gateway
 - [ ] V2 — Room Manager
 - [ ] V3 — Game Engine
 - [ ] V4 — Guessing & Scoring
