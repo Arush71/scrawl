@@ -14,7 +14,7 @@ type Handler struct {
 	Registry *ws.Registry
 }
 
-func (h *Handler) handleConnection(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
 	if username == "" {
 		helpers.BadRequestError(w)
@@ -32,4 +32,14 @@ func (h *Handler) handleConnection(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.CloseNow()
 	h.Registry.HandleConnections(username, conn)
+}
+
+func (h *Handler) handleRoomCreation(w http.ResponseWriter, r *http.Request) {
+	roomId := h.Registry.CreateRoom()
+	type response struct {
+		RoomID string `json:"roomId"`
+	}
+	helpers.WriteJSON(w, http.StatusCreated, response{
+		RoomID: roomId,
+	})
 }

@@ -29,11 +29,11 @@ func ReadJson(r *http.Request, dst any, logger *slog.Logger) error {
 
 // WriteError writes a structured error response with the given HTTP status.
 func WriteError(w http.ResponseWriter, status int, errR ErrorResponse) {
-	WriteJson(w, status, errR)
+	WriteJSON(w, status, errR)
 }
 
-// WriteJson writes a JSON response with the given HTTP status code.
-func WriteJson(w http.ResponseWriter, status int, v any) {
+// WriteJSON writes a JSON response with the given HTTP status code.
+func WriteJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {

@@ -37,8 +37,8 @@ func (r *Registry) broadcastJoin(username string) error {
 	if err != nil {
 		return fmt.Errorf("marshal write message: %w", err)
 	}
-	r.playerMu.RLock()
-	defer r.playerMu.RUnlock()
+	r.roomMu.RLock()
+	defer r.roomMu.RUnlock()
 	r.players.broadcast(data)
 	return nil
 }
@@ -50,7 +50,7 @@ func (r *Registry) broadcastLeave(username string) {
 	if err != nil {
 		return
 	}
-	r.playerMu.RLock()
-	defer r.playerMu.RUnlock()
+	r.roomMu.RLock()
+	defer r.roomMu.RUnlock()
 	r.players.broadcast(data)
 }
