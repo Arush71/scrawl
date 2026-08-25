@@ -2,7 +2,7 @@
 
 Real-time multiplayer drawing & guessing game, built from scratch in Go — custom WebSocket gateway, room management, and game engine, no framework.
 
-🚧 **In progress.** Currently on V1 (WebSocket Gateway).
+🚧 **In progress.** Currently on V3 (WebSocket Gateway).
 
 ## Stack
 
@@ -12,7 +12,7 @@ Real-time multiplayer drawing & guessing game, built from scratch in Go — cust
 ## Roadmap
 
 - [x] V1 — WebSocket Gateway
-- [ ] V2 — Room Manager
+- [x] V2 — Room Manager
 - [ ] V3 — Game Engine
 - [ ] V4 — Guessing & Scoring
 - [ ] V5 — Browser Client (minimal)

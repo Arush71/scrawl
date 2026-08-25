@@ -1,13 +1,13 @@
 package ws
 
 import (
-	"fmt"
-
-	"github.com/Arush71/scrawl/internal/protocol"
 	"github.com/coder/websocket"
+	"github.com/google/uuid"
 )
 
 type Player struct {
+	gameRoom *gameRoom
+	playerID uuid.UUID
 	conn     *websocket.Conn
 	username string
 	send     chan []byte
@@ -17,7 +17,7 @@ func (p *Player) removePlayer() {
 	p.conn.Close(websocket.StatusPolicyViolation, "connection too slow")
 }
 
-type playersT map[string]*Player
+type playersT map[uuid.UUID]*Player
 
 // NOTE: Should be called in a read lock
 func (pt playersT) broadcast(text []byte) {
@@ -28,29 +28,4 @@ func (pt playersT) broadcast(text []byte) {
 			go player.removePlayer()
 		}
 	}
-}
-
-func (r *Registry) broadcastJoin(username string) error {
-	data, err := protocol.Encode(protocol.TypePlayerJoined, protocol.PlayerEvent{
-		Username: username,
-	})
-	if err != nil {
-		return fmt.Errorf("marshal write message: %w", err)
-	}
-	r.roomMu.RLock()
-	defer r.roomMu.RUnlock()
-	r.players.broadcast(data)
-	return nil
-}
-
-func (r *Registry) broadcastLeave(username string) {
-	data, err := protocol.Encode(protocol.TypePlayerLeft, protocol.PlayerEvent{
-		Username: username,
-	})
-	if err != nil {
-		return
-	}
-	r.roomMu.RLock()
-	defer r.roomMu.RUnlock()
-	r.players.broadcast(data)
 }

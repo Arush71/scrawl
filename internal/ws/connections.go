@@ -3,37 +3,45 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/Arush71/scrawl/internal/protocol"
 	"github.com/coder/websocket"
+	"github.com/google/uuid"
 )
 
-func (r *Registry) HandleConnections(username string, conn *websocket.Conn) {
+func (r *Registry) HandleConnections(gameID string, username string, conn *websocket.Conn) {
 	p := &Player{
+		playerID: uuid.New(),
 		username: username,
 		conn:     conn,
 		send:     make(chan []byte, 16),
 	}
-	r.Attach(username, p)
-	defer r.Release(username)
-	r.logger.Info("new connection!")
-	if err := r.broadcastJoin(username); err != nil {
+	gameRoom, err := r.attachPlayer(gameID, p)
+	if err != nil {
+		conn.Close(CloseRoomNotFound, "room does not exist")
+		return
+	}
+	p.gameRoom = gameRoom
+	defer r.Release(p)
+	if err := p.gameRoom.broadcastJoin(username, p.playerID); err != nil {
 		r.logger.Error("failed to broadcast join", "error", err)
 		return
 	}
+	r.logger.Info("new connection!")
 	ctx, cancel := context.WithCancel(r.ctx)
 	defer cancel()
 	go p.writeLoop(ctx, r.logger)
 	go heartBeat(ctx, conn)
-	r.readConnection(ctx, r.logger, p)
+	r.readConnection(ctx, p)
 }
 
 func heartBeat(ctx context.Context, conn *websocket.Conn) {
 	for {
 		select {
-		case <-time.After(time.Second * 4):
+		case <-time.After(time.Second * 5):
 			newCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 			if err := conn.Ping(newCtx); err != nil {
 				_ = conn.CloseNow()
@@ -55,7 +63,7 @@ func (p *Player) writeLoop(ctx context.Context, logger *slog.Logger) {
 				return
 			}
 			if err := p.conn.Write(ctx, websocket.MessageText, data); err != nil {
-				if websocket.CloseStatus(err) != -1 {
+				if websocket.CloseStatus(err) != -1 || errors.Is(err, context.Canceled) {
 					return
 				}
 				logger.Error("Write error encounterd", "error", err.Error())
@@ -67,25 +75,25 @@ func (p *Player) writeLoop(ctx context.Context, logger *slog.Logger) {
 	}
 }
 
-func (r *Registry) readConnection(ctx context.Context, logger *slog.Logger, player *Player) {
-	defer r.broadcastLeave(player.username)
+func (r *Registry) readConnection(ctx context.Context, player *Player) {
+	defer player.gameRoom.broadcastLeave(player.username, player.playerID)
 	for {
 		_, data, err := player.conn.Read(ctx)
 		if err != nil {
 			if websocket.CloseStatus(err) != -1 {
 				return
 			}
-			logger.Error("Read connection failed", "error", err.Error())
+			r.logger.Error("Read connection failed", "error", err.Error())
 			return
 		}
 		envelope, err := protocol.Decode(data)
 		if err != nil {
-			logger.Debug("unmaershalling failed, invalid data", "data", string(data), "error", err.Error())
+			r.logger.Debug("unmaershalling failed, invalid data", "data", string(data), "error", err.Error())
 			continue
 		}
 		err = r.handleReqData(envelope, player)
 		if err != nil {
-			logger.Error("error while handling req", "error", err.Error(), "username", player.username)
+			r.logger.Error("error while handling req", "error", err.Error(), "username", player.username)
 			continue
 		}
 	}

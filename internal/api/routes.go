@@ -6,6 +6,6 @@ import (
 )
 
 func AddRoutes(mux *http.ServeMux, handler *Handler) {
-	mux.HandleFunc("GET /joinRoom", handler.handleCreateRoom)
-	mux.HandleFunc("POST /createRoom", handler.handleCreateRoom)
+	mux.HandleFunc("GET /joinRoom", handler.handleJoinRoom)
+	mux.HandleFunc("POST /createRoom", handler.handleRoomCreation)
 }

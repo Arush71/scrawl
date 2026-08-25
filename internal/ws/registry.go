@@ -3,8 +3,10 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/Arush71/scrawl/internal/helpers"
 )
@@ -27,28 +29,25 @@ func NewRegistry(logger *slog.Logger) *Registry {
 	return r
 }
 
-// func (r *Registry) TryClaim(username string) bool {
-// 	r.roomMu.Lock()
-// 	defer r.roomMu.Unlock()
-// 	if _, ok := r.claimed[username]; ok {
-// 		return false
-// 	}
-// 	r.claimed[username] = struct{}{}
-// 	return true
-// }
-//
-// func (r *Registry) Release(username string) {
-// 	r.roomMu.Lock()
-// 	defer r.roomMu.Unlock()
-// 	delete(r.claimed, username)
-// 	delete(r.players, username)
-// }
-//
-// func (r *Registry) Attach(username string, p *Player) {
-// 	r.roomMu.Lock()
-// 	defer r.roomMu.Unlock()
-// 	r.players[username] = p
-// }
+func (r *Registry) CheckRoom(roomId string) bool {
+	r.roomMu.RLock()
+	defer r.roomMu.RUnlock()
+	_, ok := r.gameRooms[roomId]
+	return ok
+}
+
+func (r *Registry) attachPlayer(roomId string, p *Player) (*gameRoom, error) {
+	r.roomMu.RLock()
+	defer r.roomMu.RUnlock()
+	room, ok := r.gameRooms[roomId]
+	if !ok {
+		return nil, errors.New("room not found")
+	}
+	room.mu.Lock()
+	room.players[p.playerID] = p
+	room.mu.Unlock()
+	return room, nil
+}
 
 func (r *Registry) CreateRoom() string {
 	var roomID string
@@ -62,9 +61,48 @@ func (r *Registry) CreateRoom() string {
 		r.gameRooms[roomID] = &gameRoom{
 			mu:      sync.RWMutex{},
 			roomID:  roomID,
-			players: make(map[string]*Player),
+			players: make(playersT),
 		}
 		r.roomMu.Unlock()
+		time.AfterFunc(time.Second*30, func() {
+			r.roomMu.RLock()
+			room, ok := r.gameRooms[roomID]
+			r.roomMu.RUnlock()
+			if !ok {
+				return
+			}
+			room.mu.RLock()
+			roomEmpty := len(room.players) == 0
+			room.mu.RUnlock()
+			if !roomEmpty {
+				return
+			}
+
+			r.roomMu.Lock()
+			// doing a ptr comparison to ensure that the room hasn't been replaced with a new one with the same ID
+			if ptr, ok := r.gameRooms[roomID]; ok && ptr == room {
+				room.mu.Lock()
+				if len(room.players) == 0 {
+					delete(r.gameRooms, roomID)
+				}
+				room.mu.Unlock()
+			}
+			r.roomMu.Unlock()
+		})
 		return roomID
+	}
+}
+
+func (r *Registry) Release(p *Player) {
+	r.roomMu.Lock()
+	defer r.roomMu.Unlock()
+
+	p.gameRoom.mu.Lock()
+	delete(p.gameRoom.players, p.playerID)
+	isEmpty := len(p.gameRoom.players) == 0
+	p.gameRoom.mu.Unlock()
+
+	if isEmpty {
+		delete(r.gameRooms, p.gameRoom.roomID)
 	}
 }

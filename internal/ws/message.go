@@ -9,6 +9,7 @@ import (
 func (r *Registry) handleMessage(message protocol.ChatPayload, pl *Player) error {
 	msg, err := protocol.Encode(protocol.TypeChat, protocol.WriteChatPayload{
 		Username: pl.username,
+		PlayerID: pl.playerID,
 		Text:     message.Text,
 	})
 	if err != nil {
@@ -16,6 +17,6 @@ func (r *Registry) handleMessage(message protocol.ChatPayload, pl *Player) error
 	}
 	r.roomMu.RLock()
 	defer r.roomMu.RUnlock()
-	r.players.broadcast(msg)
+	pl.gameRoom.players.broadcast(msg)
 	return nil
 }

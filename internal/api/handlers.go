@@ -14,32 +14,32 @@ type Handler struct {
 	Registry *ws.Registry
 }
 
-func (h *Handler) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-	if username == "" {
+func (h *Handler) handleJoinRoom(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("username")
+	gameID := r.URL.Query().Get("gameId")
+	if gameID == "" || name == "" {
 		helpers.BadRequestError(w)
 		return
 	}
-	if !h.Registry.TryClaim(username) {
-		helpers.Error(w, http.StatusConflict, "username is already taken")
+	if !h.Registry.CheckRoom(gameID) {
+		helpers.Error(w, http.StatusNotFound, "room not found")
 		return
 	}
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
-		h.Registry.Release(username)
 		h.Logger.Debug("failed to accept connection", "err", err.Error())
 		return
 	}
 	defer conn.CloseNow()
-	h.Registry.HandleConnections(username, conn)
+	h.Registry.HandleConnections(gameID, name, conn)
 }
 
 func (h *Handler) handleRoomCreation(w http.ResponseWriter, r *http.Request) {
-	roomId := h.Registry.CreateRoom()
+	roomID := h.Registry.CreateRoom()
 	type response struct {
 		RoomID string `json:"roomId"`
 	}
 	helpers.WriteJSON(w, http.StatusCreated, response{
-		RoomID: roomId,
+		RoomID: roomID,
 	})
 }
