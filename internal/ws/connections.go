@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -17,7 +18,7 @@ func (r *Registry) HandleConnections(gameID string, username string, conn *webso
 		playerID: uuid.New(),
 		username: username,
 		conn:     conn,
-		send:     make(chan []byte, 16),
+		send:     make(chan []byte, 8),
 	}
 	gameRoom, err := r.attachPlayer(gameID, p)
 	if err != nil {
@@ -107,6 +108,15 @@ func (r *Registry) handleReqData(d protocol.Envelope, player *Player) error {
 			return protocol.ErrInvalidProtocol
 		}
 		return r.handleMessage(message, player)
+	case protocol.TypeStartGame:
+		player.gameRoom.mu.RLock()
+		if player.gameRoom.gameOwner != player.playerID || player.gameRoom.gameState != Waiting {
+			player.gameRoom.mu.RUnlock()
+			return fmt.Errorf("only the game owner can start the game")
+		}
+		player.gameRoom.mu.RUnlock()
+		player.gameRoom.startGame()
+		return nil
 	default:
 		return protocol.ErrInvalidProtocol
 	}

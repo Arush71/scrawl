@@ -12,7 +12,8 @@ type MessageType string
 
 const (
 	// Client-> Server
-	TypeChat MessageType = "chat"
+	TypeChat      MessageType = "chat"
+	TypeStartGame MessageType = "start_game"
 
 	// Server-> Client
 	TypePlayerJoined MessageType = "player_joined"

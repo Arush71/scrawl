@@ -36,14 +36,24 @@ func (r *Registry) CheckRoom(roomId string) bool {
 	return ok
 }
 
-func (r *Registry) attachPlayer(roomId string, p *Player) (*gameRoom, error) {
+func (r *Registry) attachPlayer(roomID string, p *Player) (*gameRoom, error) {
 	r.roomMu.RLock()
 	defer r.roomMu.RUnlock()
-	room, ok := r.gameRooms[roomId]
+	room, ok := r.gameRooms[roomID]
 	if !ok {
 		return nil, errors.New("room not found")
 	}
 	room.mu.Lock()
+	if room.gameState != Waiting {
+		room.mu.Unlock()
+		// TODO: defering the feature to allow people to join even while the game is in progress, for now we will just check if the game is in waiting state
+		return nil, errors.New("room not found")
+	}
+	if len(room.players) == 0 {
+		room.gameOwner = p.playerID
+	}
+	room.nextSeq++
+	p.joinSeq = room.nextSeq
 	room.players[p.playerID] = p
 	room.mu.Unlock()
 	return room, nil
@@ -59,9 +69,11 @@ func (r *Registry) CreateRoom() string {
 			continue
 		}
 		r.gameRooms[roomID] = &gameRoom{
-			mu:      sync.RWMutex{},
-			roomID:  roomID,
-			players: make(playersT),
+			mu:        sync.RWMutex{},
+			roomID:    roomID,
+			players:   make(playersT),
+			gameState: Waiting,
+			nextSeq:   0,
 		}
 		r.roomMu.Unlock()
 		time.AfterFunc(time.Second*30, func() {

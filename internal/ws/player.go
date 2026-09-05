@@ -11,6 +11,7 @@ type Player struct {
 	conn     *websocket.Conn
 	username string
 	send     chan []byte
+	joinSeq  int
 }
 
 func (p *Player) removePlayer() {
