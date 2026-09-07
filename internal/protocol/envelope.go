@@ -12,12 +12,17 @@ type MessageType string
 
 const (
 	// Client-> Server
-	TypeChat      MessageType = "chat"
-	TypeStartGame MessageType = "start_game"
+	TypeChat         MessageType = "chat"
+	TypeStartGame    MessageType = "start_game"
+	TypeSelectedWord MessageType = "selected_word"
 
 	// Server-> Client
 	TypePlayerJoined MessageType = "player_joined"
 	TypePlayerLeft   MessageType = "player_left"
+	TypePickWord     MessageType = "pick_word"
+	TypePhasePick    MessageType = "phase_pick"
+	TypePhaseDraw    MessageType = "phase_draw"
+	TypeWordGuessed  MessageType = "word_guessed"
 )
 
 type Envelope struct {

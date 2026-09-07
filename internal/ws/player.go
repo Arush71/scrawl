@@ -30,3 +30,22 @@ func (pt playersT) broadcast(text []byte) {
 		}
 	}
 }
+
+// NOTE: Should be called in a read lock
+func (pt playersT) broadcastExtra(textA []byte, textB []byte, extraID uuid.UUID) {
+	for id, player := range pt {
+		if id == extraID {
+			select {
+			case player.send <- textB:
+			default:
+				go player.removePlayer()
+			}
+		} else {
+			select {
+			case player.send <- textA:
+			default:
+				go player.removePlayer()
+			}
+		}
+	}
+}

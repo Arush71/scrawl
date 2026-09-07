@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -107,16 +106,37 @@ func (r *Registry) handleReqData(d protocol.Envelope, player *Player) error {
 		if err := json.Unmarshal(d.Data, &message); err != nil || message.Text == "" {
 			return protocol.ErrInvalidProtocol
 		}
-		return r.handleMessage(message, player)
+		return handleMessage(message, player)
 	case protocol.TypeStartGame:
-		player.gameRoom.mu.RLock()
+		player.gameRoom.mu.Lock()
 		if player.gameRoom.gameOwner != player.playerID || player.gameRoom.gameState != Waiting {
+			player.gameRoom.mu.Unlock()
+			return protocol.ErrInvalidProtocol
+		}
+		player.gameRoom.gameState = WordSelection
+		player.gameRoom.orderedPlayers()
+		drawerID := player.gameRoom.nextDrawer()
+		player.gameRoom.mu.Unlock()
+
+		go player.gameRoom.startGame(drawerID)
+		return nil
+	case protocol.TypeSelectedWord:
+		player.gameRoom.mu.RLock()
+		if player.gameRoom.gameState != WordSelection || player.gameRoom.playerOrder[player.gameRoom.currentDrawerIdx] != player.playerID {
 			player.gameRoom.mu.RUnlock()
-			return fmt.Errorf("only the game owner can start the game")
+			return protocol.ErrInvalidProtocol
 		}
 		player.gameRoom.mu.RUnlock()
-		player.gameRoom.startGame()
-		return nil
+		var data protocol.WordSelected
+		if err := json.Unmarshal(d.Data, &data); err != nil || data.Word == "" {
+			return protocol.ErrInvalidProtocol
+		}
+		select {
+		case player.gameRoom.currentWordCh <- data.Word:
+			return nil
+		default:
+			return protocol.ErrInvalidProtocol
+		}
 	default:
 		return protocol.ErrInvalidProtocol
 	}
