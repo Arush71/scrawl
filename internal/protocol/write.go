@@ -29,3 +29,11 @@ type WriteWordGuessed struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Username string    `json:"username"`
 }
+
+type WriteRotationEnd struct {
+	Word string `json:"word"`
+	// PlayersPoints map[uuid.UUID]int `json:"players_points"` // omitting for now
+	AllGuessed bool `json:"all_guessed"` // true if all guessed the word, false if time ran out
+}
+
+type WriteRoundComplete struct{}

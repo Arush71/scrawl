@@ -70,14 +70,16 @@ func (r *Registry) CreateRoom() string {
 			continue
 		}
 		r.gameRooms[roomID] = &gameRoom{
-			mu:             sync.RWMutex{},
-			roomID:         roomID,
-			players:        make(playersT),
-			gameState:      Waiting,
-			nextSeq:        0,
-			currentWordCh:  make(chan string),
-			guessedPlayers: make(map[uuid.UUID]struct{}),
-			guessListner:   make(chan struct{}, 1), // buffer of one to avoid blocking
+			mu:               sync.RWMutex{},
+			roomID:           roomID,
+			players:          make(playersT),
+			gameState:        Waiting,
+			nextSeq:          0,
+			currentWordCh:    make(chan string),
+			guessedPlayers:   make(map[uuid.UUID]struct{}),
+			guessListner:     make(chan struct{}, 1), // buffer of one to avoid blocking
+			currentDrawerIdx: -1,
+			totalRounds:      3, // default to 3 rounds, can be changed later
 		}
 		r.roomMu.Unlock()
 		time.AfterFunc(time.Second*30, func() {

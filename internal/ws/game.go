@@ -27,7 +27,7 @@ type gameRoom struct {
 	gameState        gameState
 	playerOrder      []uuid.UUID
 	currentDrawerIdx int // index of the current drawer in playerOrder
-	round            int
+	currentRound     int
 	totalRounds      int
 	currentWord      string
 	currentWordCh    chan string // unbuffered channel to receive the selected word from the drawer
@@ -36,7 +36,7 @@ type gameRoom struct {
 	guessListner     chan struct{}          // channel to signal when all players have guessed the word
 }
 
-// NOTE: neet to hold a Lock on the gameRoom before calling this function
+// NOTE: need to hold a Lock on the gameRoom before calling this function
 func (g *gameRoom) orderedPlayers() {
 	totalPlayers := len(g.players)
 	players := make([]uuid.UUID, 0, totalPlayers)
@@ -49,10 +49,10 @@ func (g *gameRoom) orderedPlayers() {
 	g.playerOrder = players
 }
 
-// NOTE: neet to hold a Lock on the gameRoom before calling this function
+// NOTE: need to hold a Lock on the gameRoom before calling this function
 func (g *gameRoom) nextDrawer() uuid.UUID {
 	for {
-		g.currentDrawerIdx = (g.currentDrawerIdx + 1) % len(g.playerOrder)
+		g.currentDrawerIdx = (g.currentDrawerIdx + 1) % len(g.playerOrder) // should init IDx to -1
 		id := g.playerOrder[g.currentDrawerIdx]
 		if _, ok := g.players[id]; ok {
 			return id
@@ -60,13 +60,41 @@ func (g *gameRoom) nextDrawer() uuid.UUID {
 	}
 }
 
-func (g *gameRoom) startGame(drawerID uuid.UUID) {
-	g.broadcastPhase(WordSelection, drawerID)
-	g.waitForWordSelection() // can run till 15 seconds max
-	g.mu.Lock()
-	g.gameState = Drawing
-	g.mu.Unlock()
-	g.broadcastPhase(Drawing, drawerID)
+// NOTE: Need to hold an RLOCK, should only be called after nextDrawer
+func (g *gameRoom) isRotationOver() bool {
+	new_idx := (g.currentDrawerIdx + 1) % len(g.playerOrder) // should init IDx to -1
+	if new_idx == 0 {
+		return true
+	}
+	return false
+}
+
+func (g *gameRoom) startGame(drawerID uuid.UUID, totalRounds int) {
+	for range totalRounds {
+		for {
+			g.broadcastPhase(WordSelection, drawerID)
+			g.waitForWordSelection() // can run till 15 seconds max
+			g.mu.Lock()
+			g.gameState = Drawing
+			g.mu.Unlock()
+			g.broadcastPhase(Drawing, drawerID)
+			g.waitForWordGuess() // can run till 80 seconds max
+
+			g.mu.RLock()
+			rotationComplete := g.isRotationOver()
+			g.mu.RUnlock()
+			if rotationComplete {
+				break
+			}
+
+			g.mu.Lock()
+			drawerID = g.nextDrawer()
+			g.gameState = WordSelection
+			g.guessedPlayers = make(map[uuid.UUID]struct{})
+			g.mu.Unlock()
+		}
+		g.roundComplete()
+	}
 }
 
 func (g *gameRoom) broadcastJoin(username string, ID uuid.UUID) error {
@@ -138,4 +166,27 @@ func (g *gameRoom) waitForWordSelection() {
 		defer g.mu.Unlock()
 		g.currentWord = "apple" // default word if no selection is made
 	}
+}
+
+func (g *gameRoom) waitForWordGuess() {
+	allGuessed := true
+	select {
+	case <-g.guessListner:
+	case <-time.After(80 * time.Second):
+		allGuessed = false
+	}
+	g.mu.RLock()
+	word := g.currentWord
+	g.mu.RUnlock()
+
+	data, err := protocol.Encode(protocol.TypeRotationEnd, protocol.WriteRotationEnd{
+		Word:       word,
+		AllGuessed: allGuessed,
+	})
+	if err != nil {
+		return
+	}
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	g.players.broadcast(data)
 }

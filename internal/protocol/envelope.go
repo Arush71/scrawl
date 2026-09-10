@@ -17,12 +17,14 @@ const (
 	TypeSelectedWord MessageType = "selected_word"
 
 	// Server-> Client
-	TypePlayerJoined MessageType = "player_joined"
-	TypePlayerLeft   MessageType = "player_left"
-	TypePickWord     MessageType = "pick_word"
-	TypePhasePick    MessageType = "phase_pick"
-	TypePhaseDraw    MessageType = "phase_draw"
-	TypeWordGuessed  MessageType = "word_guessed"
+	TypePlayerJoined  MessageType = "player_joined"
+	TypePlayerLeft    MessageType = "player_left"
+	TypePickWord      MessageType = "pick_word"
+	TypePhasePick     MessageType = "phase_pick"
+	TypePhaseDraw     MessageType = "phase_draw"
+	TypeWordGuessed   MessageType = "word_guessed"
+	TypeRotationEnd   MessageType = "rotation_end"
+	TypeRoundComplete MessageType = "round_complete"
 )
 
 type Envelope struct {

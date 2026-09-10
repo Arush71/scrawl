@@ -115,10 +115,12 @@ func (r *Registry) handleReqData(d protocol.Envelope, player *Player) error {
 		}
 		player.gameRoom.gameState = WordSelection
 		player.gameRoom.orderedPlayers()
-		drawerID := player.gameRoom.nextDrawer()
+		drawerID, _ := player.gameRoom.nextDrawer()
+		totalRounds := player.gameRoom.totalRounds // TODO: make this configurable later
+		player.gameRoom.currentRound = 1
 		player.gameRoom.mu.Unlock()
 
-		go player.gameRoom.startGame(drawerID)
+		go player.gameRoom.startGame(drawerID, totalRounds)
 		return nil
 	case protocol.TypeSelectedWord:
 		player.gameRoom.mu.RLock()
