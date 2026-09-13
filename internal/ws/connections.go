@@ -109,7 +109,7 @@ func (r *Registry) handleReqData(d protocol.Envelope, player *Player) error {
 		return handleMessage(message, player)
 	case protocol.TypeStartGame:
 		player.gameRoom.mu.Lock()
-		if player.gameRoom.gameOwner != player.playerID || player.gameRoom.gameState != Waiting {
+		if player.gameRoom.gameOwner != player.playerID || player.gameRoom.gameState != Waiting || len(player.gameRoom.players) < 2 {
 			player.gameRoom.mu.Unlock()
 			return protocol.ErrInvalidProtocol
 		}

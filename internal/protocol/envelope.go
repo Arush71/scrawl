@@ -25,6 +25,7 @@ const (
 	TypeWordGuessed   MessageType = "word_guessed"
 	TypeRotationEnd   MessageType = "rotation_end"
 	TypeRoundComplete MessageType = "round_complete"
+	TypeGameOver      MessageType = "game_over"
 )
 
 type Envelope struct {

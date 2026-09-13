@@ -34,7 +34,10 @@ func handleMessage(message protocol.ChatPayload, pl *Player) error {
 		if strings.EqualFold(message.Text, pl.gameRoom.currentWord) {
 			pl.gameRoom.guessedPlayers[pl.playerID] = struct{}{}
 			if len(pl.gameRoom.guessedPlayers) == len(pl.gameRoom.players)-1 {
-				pl.gameRoom.guessListner <- struct{}{}
+				select {
+				case pl.gameRoom.guessListner <- struct{}{}:
+				default:
+				}
 			}
 			pl.gameRoom.mu.Unlock()
 			data, err = protocol.Encode(protocol.TypeWordGuessed, protocol.WriteWordGuessed{

@@ -36,4 +36,10 @@ type WriteRotationEnd struct {
 	AllGuessed bool `json:"all_guessed"` // true if all guessed the word, false if time ran out
 }
 
-type WriteRoundComplete struct{}
+type WriteRoundComplete struct {
+	RoundCompleted int `json:"round_completed"`
+}
+
+type WriteGameOver struct {
+	// Winners map[uuid.UUID]int `json:"winners"`  // list of 3 players who won
+}

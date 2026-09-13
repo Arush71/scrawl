@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Arush71/scrawl/internal/helpers"
-	"github.com/google/uuid"
 )
 
 type Registry struct {
@@ -69,18 +68,7 @@ func (r *Registry) CreateRoom() string {
 			r.roomMu.Unlock()
 			continue
 		}
-		r.gameRooms[roomID] = &gameRoom{
-			mu:               sync.RWMutex{},
-			roomID:           roomID,
-			players:          make(playersT),
-			gameState:        Waiting,
-			nextSeq:          0,
-			currentWordCh:    make(chan string),
-			guessedPlayers:   make(map[uuid.UUID]struct{}),
-			guessListner:     make(chan struct{}, 1), // buffer of one to avoid blocking
-			currentDrawerIdx: -1,
-			totalRounds:      3, // default to 3 rounds, can be changed later
-		}
+		r.gameRooms[roomID] = NewGameRoom(roomID, r.ctx)
 		r.roomMu.Unlock()
 		time.AfterFunc(time.Second*30, func() {
 			r.roomMu.RLock()
@@ -122,6 +110,7 @@ func (r *Registry) Release(p *Player) {
 	p.gameRoom.mu.Unlock()
 
 	if isEmpty {
+		p.gameRoom.cancel()
 		delete(r.gameRooms, p.gameRoom.roomID)
 	}
 }
