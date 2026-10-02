@@ -43,3 +43,7 @@ type WriteRoundComplete struct {
 type WriteGameOver struct {
 	// Winners map[uuid.UUID]int `json:"winners"`  // list of 3 players who won
 }
+
+type WriteOwnerChanged struct {
+	OwnerID uuid.UUID `json:"owner_id"`
+}

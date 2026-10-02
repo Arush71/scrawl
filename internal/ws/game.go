@@ -20,37 +20,39 @@ const (
 )
 
 type gameRoom struct {
-	mu               sync.RWMutex
-	ctx              context.Context
-	cancel           context.CancelFunc
-	gameOwner        uuid.UUID
-	roomID           string
-	players          playersT
-	gameState        gameState
-	playerOrder      []uuid.UUID
-	currentDrawerIdx int // index of the current drawer in playerOrder
-	currentRound     int
-	totalRounds      int
-	currentWord      string
-	currentWordCh    chan string // unbuffered channel to receive the selected word from the drawer
-	nextSeq          int
-	guessedPlayers   map[uuid.UUID]struct{} // set to track players who have guessed the word
-	guessListner     chan struct{}          // channel to signal when all players have guessed the word
+	mu                 sync.RWMutex
+	ctx                context.Context
+	cancel             context.CancelFunc
+	gameOwner          uuid.UUID
+	roomID             string
+	players            playersT
+	gameState          gameState
+	playerOrder        []uuid.UUID
+	currentDrawerIdx   int // index of the current drawer in playerOrder
+	currentRound       int
+	totalRounds        int
+	currentWord        string
+	currentWordCh      chan string // unbuffered channel to receive the selected word from the drawer
+	nextSeq            int
+	guessedPlayers     map[uuid.UUID]struct{} // set to track players who have guessed the word
+	guessListner       chan struct{}          // channel to signal when all players have guessed the word
+	signalPlayerChange chan struct{}          // channel to signal player join/leave events while on-game
 }
 
 func NewGameRoom(roomID string, ctx context.Context) *gameRoom {
 	g := &gameRoom{
-		mu:               sync.RWMutex{},
-		roomID:           roomID,
-		players:          make(playersT),
-		gameState:        Waiting,
-		nextSeq:          0,
-		currentWordCh:    make(chan string),
-		guessedPlayers:   make(map[uuid.UUID]struct{}),
-		guessListner:     make(chan struct{}),
-		currentDrawerIdx: -1,
-		currentRound:     -1,
-		totalRounds:      3, // default to 3 rounds, can be changed later
+		mu:                 sync.RWMutex{},
+		roomID:             roomID,
+		players:            make(playersT),
+		gameState:          Waiting,
+		nextSeq:            0,
+		currentWordCh:      make(chan string),
+		guessedPlayers:     make(map[uuid.UUID]struct{}),
+		guessListner:       make(chan struct{}),
+		currentDrawerIdx:   -1,
+		currentRound:       -1,
+		totalRounds:        3, // default to 3 rounds, can be changed later
+		signalPlayerChange: make(chan struct{}, 1),
 	}
 	g.ctx, g.cancel = context.WithCancel(ctx)
 	return g
@@ -87,6 +89,8 @@ func (g *gameRoom) nextDrawer() (uuid.UUID, bool) {
 }
 
 func (g *gameRoom) startGame(drawerID uuid.UUID, totalRounds int) {
+	toBreak := false
+outer:
 	for range totalRounds {
 		if g.ctx.Err() != nil {
 			return
@@ -94,17 +98,23 @@ func (g *gameRoom) startGame(drawerID uuid.UUID, totalRounds int) {
 		isRoundComplete := false
 		for {
 			g.broadcastPhase(WordSelection, drawerID)
-			g.waitForWordSelection() // can run till 15 seconds max
+			toBreak = g.waitForWordSelection() // can run till 15 seconds max
 			if g.ctx.Err() != nil {
 				return
+			}
+			if toBreak {
+				break outer
 			}
 			g.mu.Lock()
 			g.gameState = Drawing
 			g.mu.Unlock()
 			g.broadcastPhase(Drawing, drawerID)
-			g.waitForWordGuess() // can run till 80 seconds max
+			toBreak = g.waitForWordGuess() // can run till 80 seconds max
 			if g.ctx.Err() != nil {
 				return
+			}
+			if toBreak {
+				break outer
 			}
 
 			g.mu.Lock()
@@ -204,7 +214,7 @@ func (g *gameRoom) broadcastPhase(state gameState, drawerID uuid.UUID) {
 	}
 }
 
-func (g *gameRoom) waitForWordSelection() {
+func (g *gameRoom) waitForWordSelection() bool {
 	select {
 	case word := <-g.currentWordCh:
 		g.mu.Lock()
@@ -219,7 +229,7 @@ func (g *gameRoom) waitForWordSelection() {
 	}
 }
 
-func (g *gameRoom) waitForWordGuess() {
+func (g *gameRoom) waitForWordGuess() bool {
 	allGuessed := true
 	select {
 	case <-g.guessListner:
@@ -250,4 +260,23 @@ func (g *gameRoom) cleanUpOnEnd() {
 	g.playerOrder = make([]uuid.UUID, 0)
 	g.currentRound = -1
 	g.currentDrawerIdx = -1
+	g.signalPlayerChange = make(chan struct{}, 1)
+}
+
+// Returns true if the game should end due to player count change, false otherwise
+func (g *gameRoom) signalPlayerChangeEvent() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.gameState == Waiting {
+		return false
+	}
+	if len(g.players) <= 1 {
+		return true
+	}
+	if g.gameState == Drawing {
+		if _, ok := g.players[g.playerOrder[g.currentDrawerIdx]]; !ok {
+			// TODO: make the signal return type such that it identify
+			// b/w round end vs game over and some other state change
+		}
+	}
 }

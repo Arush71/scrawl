@@ -57,7 +57,7 @@ func handleMessage(message protocol.ChatPayload, pl *Player) error {
 		return fmt.Errorf("marshal write message: %w", err)
 	}
 	pl.gameRoom.mu.RLock()
+	defer pl.gameRoom.mu.RUnlock()
 	pl.gameRoom.players.broadcast(data)
-	pl.gameRoom.mu.RUnlock()
 	return nil
 }

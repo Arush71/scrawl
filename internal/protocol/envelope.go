@@ -26,6 +26,7 @@ const (
 	TypeRotationEnd   MessageType = "rotation_end"
 	TypeRoundComplete MessageType = "round_complete"
 	TypeGameOver      MessageType = "game_over"
+	TypeOwnerChanged  MessageType = "owner_changed"
 )
 
 type Envelope struct {
